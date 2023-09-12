@@ -24,7 +24,7 @@ final class WhatsAppDriver extends  HttpDriver
     const MESSAGING_TYPE = "RESPONSE";
 
     /** @var string */
-    const DRIVER_NAME = 'Whatsapp';
+    const DRIVER_NAME = 'WhatsApp';
 
     public $messages = [];
 
