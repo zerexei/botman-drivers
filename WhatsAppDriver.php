@@ -15,7 +15,7 @@ use Symfony\Component\HttpFoundation\ParameterBag;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-final class WhatsAppDriver extends  HttpDriver
+class WhatsAppDriver extends  HttpDriver
 {
     // https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages#text-messages
     // https://www.youtube.com/watch?v=eiAiasR1LGE
