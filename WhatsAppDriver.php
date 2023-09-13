@@ -24,10 +24,10 @@ final class WhatsAppDriver extends  HttpDriver
     const MESSAGING_TYPE = "RESPONSE";
 
     /** @var string */
+    // DRIVER_NAME needs to match filename w/out "Driver"
     const DRIVER_NAME = 'WhatsApp';
 
     public $messages = [];
-
 
     /**
      * This method is used to carry out the initial setup
@@ -47,7 +47,7 @@ final class WhatsAppDriver extends  HttpDriver
      *
      * @return bool
      */
-    public function matchesRequest(): bool
+    public function matchesRequest()
     {
         if ($this->payload->get('object') !== "whatsapp_business_account") {
             return false;
@@ -61,13 +61,15 @@ final class WhatsAppDriver extends  HttpDriver
      *
      * @return array
      */
-    public function getMessages(): array
+    public function getMessages()
     {
         if (empty($this->messages)) {
             $userMessage = $this->getRequestMessage();
-            $userId = $this->getSenderId();
-            $senderId = $this->getReceiverId();
-            $message = new IncomingMessage($userMessage, $userId, $senderId, $this->payload);
+            $senderId = $this->getSenderId(); // app
+            $receiverId = $this->getReceiverId(); // user
+
+            // FIXME: update to sender/receiver id
+            $message = new IncomingMessage($userMessage, $receiverId, $senderId, $this->payload);
             $this->messages = [$message];
         }
 
@@ -81,6 +83,7 @@ final class WhatsAppDriver extends  HttpDriver
      */
     public function getUser(IncomingMessage $matchingMessage)
     {
+        Log::error("getUser: " . $matchingMessage->getSender());
         return new User($matchingMessage->getSender());
     }
 
@@ -99,8 +102,11 @@ final class WhatsAppDriver extends  HttpDriver
      * @param array $additionalParameters
      * @return Response
      */
-    public function buildServicePayload($message, $matchingMessage, $additionalParameters = []): array
+    public function buildServicePayload($message, $matchingMessage, $additionalParameters = [])
     {
+        Log::error("buildServicePayload", [$message->getText(), $matchingMessage->getText(), $additionalParameters]);
+
+        // https://business.facebook.com/wa/manage/message-templates/
         $parameters = [
             "messaging_product" => "whatsapp",
             "recipient_type" => "individual",
@@ -121,15 +127,16 @@ final class WhatsAppDriver extends  HttpDriver
      */
     public function sendPayload($payload)
     {
+        // TODO: @token expired notify organization
+
         // 'https://graph.facebook.com/v17.0/FROM_PHONE_NUMBER_ID/messages'
-        $response = $this->http->post(
-            $this->facebookProfileEndpoint . $this->getSenderId() . '/messages',
-            [],
-            $payload,
-            headers: [
-                'Authorization: Bearer ' . $this->config->get('token'),
-            ]
-        );
+        $url = $this->facebookProfileEndpoint . $this->getSenderId() . '/messages';
+        $headers = ['Authorization: Bearer ' . $this->config->get('token')];
+        $response = $this->http->post($url, [], $payload, $headers);
+
+        if (!$response->isSuccessful()) {
+            Log::error("sendPayload", [$payload, $this->config->get('token'), $response->getContent()]);
+        }
 
         return $response;
     }
@@ -145,9 +152,15 @@ final class WhatsAppDriver extends  HttpDriver
      */
     public function sendRequest($endpoint, array $parameters, IncomingMessage $matchingMessage)
     {
-        return $this->http->post($this->facebookProfileEndpoint . $endpoint, [], $parameters, headers: [
-            'Authorization: Bearer ' . $this->config->get('token'),
-        ]);
+        $url = $this->facebookProfileEndpoint . $this->getSenderId() . '/messages';
+        $headers = ['Authorization: Bearer ' . $this->config->get('token')];
+        $response = $this->http->post($url, [], $parameters, $headers);
+
+        if (!$response->isSuccessful()) {
+            Log::error("sendRequest", [$parameters, $this->config->get('token'), $response->getContent()]);
+        }
+
+        return $response;
     }
 
     /**
@@ -158,20 +171,21 @@ final class WhatsAppDriver extends  HttpDriver
         return !empty($this->config->get('token'));
     }
 
-
-    protected function getRequestMessage(): string
+    public function getRequestMessage(): string
     {
-        return $this->event->get("changes")[0]['value']['messages'][0]['text']['body'] ?? "";
+        return (string) $this->event->get("changes")[0]['value']['messages'][0]['text']['body'] ?? "";
     }
 
 
-    protected function getSenderId(): string
+    // app
+    public function getSenderId(): string
     {
-        return $this->event->get("changes")[0]['value']['metadata']['phone_number_id'] ?? "";
+        return (string) $this->event->get("changes")[0]['value']['metadata']['phone_number_id'] ?? "";
     }
 
-    protected function getReceiverId(): string
+    // user
+    public function getReceiverId(): string
     {
-        return $this->event->get("changes")[0]['value']['messages'][0]['from'] ?? "";
+        return (string) $this->event->get("changes")[0]['value']['messages'][0]['from'] ?? "";
     }
 }
