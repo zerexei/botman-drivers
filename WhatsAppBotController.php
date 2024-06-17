@@ -16,7 +16,7 @@ use App\Http\Controllers\Controller;
 
 use Illuminate\Support\Facades\Cache;
 
-class WhatsAppController extends Controller
+class WhatsAppBotController extends Controller
 {
     /**
      * Handle the incoming request.
