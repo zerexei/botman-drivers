@@ -15,10 +15,9 @@ use Symfony\Component\HttpFoundation\ParameterBag;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class WhatsAppDriver extends  HttpDriver
+
+final class WhatsAppDriver extends  HttpDriver
 {
-    // https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages#text-messages
-    // https://www.youtube.com/watch?v=eiAiasR1LGE
     protected $facebookProfileEndpoint = 'https://graph.facebook.com/v17.0/';
 
     const MESSAGING_TYPE = "RESPONSE";
@@ -68,7 +67,6 @@ class WhatsAppDriver extends  HttpDriver
             $senderId = $this->getSenderId(); // app
             $receiverId = $this->getReceiverId(); // user
 
-            // FIXME: update to sender/receiver id
             $message = new IncomingMessage($userMessage, $receiverId, $senderId, $this->payload);
             $this->messages = [$message];
         }
@@ -83,7 +81,6 @@ class WhatsAppDriver extends  HttpDriver
      */
     public function getUser(IncomingMessage $matchingMessage)
     {
-        Log::error("getUser: " . $matchingMessage->getSender());
         return new User($matchingMessage->getSender());
     }
 
@@ -93,7 +90,13 @@ class WhatsAppDriver extends  HttpDriver
      */
     public function getConversationAnswer(IncomingMessage $message)
     {
-        return Answer::create($message->getText())->setMessage($message);
+        $answer = Answer::create($message->getText())->setMessage($message);
+
+        if (str_starts_with($message->getText(), 'go-to-block:')) {
+            $answer->setInteractiveReply(true);
+        }
+
+        return $answer;
     }
 
     /**
@@ -104,9 +107,10 @@ class WhatsAppDriver extends  HttpDriver
      */
     public function buildServicePayload($message, $matchingMessage, $additionalParameters = [])
     {
-        Log::error("buildServicePayload", [$message->getText(), $matchingMessage->getText(), $additionalParameters]);
+        if (!isset($additionalParameters['type'])) {
+            $additionalParameters['type'] = "text";
+        }
 
-        // https://business.facebook.com/wa/manage/message-templates/
         $parameters = [
             "messaging_product" => "whatsapp",
             "recipient_type" => "individual",
@@ -118,6 +122,51 @@ class WhatsAppDriver extends  HttpDriver
             ]
         ];
 
+        if ($additionalParameters['type'] === 'image') {
+            // unset($parameters['text']);
+
+            $parameters['type'] = "image";
+            $parameters['image'] = [
+                'link' => $message->getText()
+            ];
+        }
+
+        // https://www.youtube.com/watch?v=BLfNT9rSZ_M
+        if (in_array($additionalParameters['type'], ['button', 'quick-reply'])) {
+            $parameters['type'] = "interactive";
+
+            $buttons = collect($additionalParameters['buttons'])
+                ->slice(0, 10)
+                ->map(function ($button) {
+                    $payload = [
+                        "id" =>  $button['id'],
+                        "title" => $button['title'],
+                    ];
+
+                    if ($button['type'] === 'go-to-block') {
+                        $payload['id'] = "go-to-block:" . $button['value'];
+                    }
+
+                    return $payload;
+                })->toArray();
+
+            $parameters['interactive'] = [
+                'type' => 'list',
+                "body" => [
+                    "text" => $message->getText()
+                ],
+                'action' => [
+                    "sections" => [
+                        [
+                            "title" => "Options",
+                            "rows" => $buttons
+                        ]
+                    ],
+                    "button" => "Options",
+                ]
+            ];
+        }
+
         return $parameters;
     }
 
@@ -127,15 +176,15 @@ class WhatsAppDriver extends  HttpDriver
      */
     public function sendPayload($payload)
     {
-        // TODO: @token expired notify organization
 
         // 'https://graph.facebook.com/v17.0/FROM_PHONE_NUMBER_ID/messages'
         $url = $this->facebookProfileEndpoint . $this->getSenderId() . '/messages';
         $headers = ['Authorization: Bearer ' . $this->config->get('token')];
         $response = $this->http->post($url, [], $payload, $headers);
+        Log::error("sendPayload", [$payload]);
 
         if (!$response->isSuccessful()) {
-            Log::error("sendPayload", [$payload, $this->config->get('token'), $response->getContent()]);
+            Log::error("sendPayloadddd", [$payload, $this->config->get('token'), $response->getContent()]);
         }
 
         return $response;
@@ -173,7 +222,19 @@ class WhatsAppDriver extends  HttpDriver
 
     public function getRequestMessage(): string
     {
-        return (string) $this->event->get("changes")[0]['value']['messages'][0]['text']['body'] ?? "";
+        $type = request()->entry[0]["changes"][0]['value']['messages'][0]['type'] ?? "";
+        switch ($type) {
+            case 'text':
+                return request()->entry[0]["changes"][0]['value']['messages'][0]['text']['body'] ?? "";
+
+            case 'interactive':
+                $reply = request()->entry[0]["changes"][0]['value']['messages'][0]['interactive']['list_reply'];
+                $input = str_starts_with($reply['id'], 'go-to-block:') ? $reply['id'] : "";
+                return $input ? $input : $reply['title'] ?? "";
+
+            default:
+                return "";
+        }
     }
 
 
