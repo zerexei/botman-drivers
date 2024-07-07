@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Conversations\Drivers;
+namespace App\Modules\BotMan;
 
 use BotMan\BotMan\Drivers\HttpDriver;
 use BotMan\BotMan\Messages\Incoming\Answer;
@@ -10,17 +10,16 @@ use BotMan\BotMan\Messages\Outgoing\Question;
 use BotMan\Drivers\Facebook\Extensions\User;
 
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
+
 use Symfony\Component\HttpFoundation\ParameterBag;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-
-final class WhatsAppDriver extends  HttpDriver
+// https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages
+// https://developers.facebook.com/docs/whatsapp/messaging-limits
+class WhatsAppDriver extends  HttpDriver
 {
-    protected $facebookProfileEndpoint = 'https://graph.facebook.com/v17.0/';
-
-    const MESSAGING_TYPE = "RESPONSE";
+    protected $endpoint = 'https://graph.facebook.com/v17.0/';
 
     /** @var string */
     // DRIVER_NAME needs to match filename w/out "Driver"
@@ -52,7 +51,7 @@ final class WhatsAppDriver extends  HttpDriver
             return false;
         }
 
-        return (bool) $this->getRequestMessage();
+        return (bool) $this->getMessageText();
     }
 
     /**
@@ -63,10 +62,11 @@ final class WhatsAppDriver extends  HttpDriver
     public function getMessages()
     {
         if (empty($this->messages)) {
-            $userMessage = $this->getRequestMessage();
+            $userMessage = $this->getMessageText();
             $senderId = $this->getSenderId(); // app
             $receiverId = $this->getReceiverId(); // user
 
+            // FIXME: update to sender/receiver id
             $message = new IncomingMessage($userMessage, $receiverId, $senderId, $this->payload);
             $this->messages = [$message];
         }
@@ -92,10 +92,6 @@ final class WhatsAppDriver extends  HttpDriver
     {
         $answer = Answer::create($message->getText())->setMessage($message);
 
-        if (str_starts_with($message->getText(), 'go-to-block:')) {
-            $answer->setInteractiveReply(true);
-        }
-
         return $answer;
     }
 
@@ -107,9 +103,7 @@ final class WhatsAppDriver extends  HttpDriver
      */
     public function buildServicePayload($message, $matchingMessage, $additionalParameters = [])
     {
-        if (!isset($additionalParameters['type'])) {
-            $additionalParameters['type'] = "text";
-        }
+        $additionalParameters['type'] ??= "text";
 
         $parameters = [
             "messaging_product" => "whatsapp",
@@ -123,33 +117,26 @@ final class WhatsAppDriver extends  HttpDriver
         ];
 
         if ($additionalParameters['type'] === 'image') {
-            // unset($parameters['text']);
-
             $parameters['type'] = "image";
             $parameters['image'] = [
                 'link' => $message->getText()
             ];
         }
 
-        // https://www.youtube.com/watch?v=BLfNT9rSZ_M
         if (in_array($additionalParameters['type'], ['button', 'quick-reply'])) {
             $parameters['type'] = "interactive";
 
-            $buttons = collect($additionalParameters['buttons'])
-                ->slice(0, 10)
-                ->map(function ($button) {
-                    $payload = [
-                        "id" =>  $button['id'],
-                        "title" => $button['title'],
-                    ];
+            // parse buttons
+            $buttons = $additionalParameters['buttons'];
+            $buttons = array_slice($buttons, 0, 10);
+            $buttons = array_map(function ($button) {
+                return [
+                    "id" =>  $button['id'],
+                    "title" => $button['title'],
+                ];
+            }, $buttons);
 
-                    if ($button['type'] === 'go-to-block') {
-                        $payload['id'] = "go-to-block:" . $button['value'];
-                    }
-
-                    return $payload;
-                })->toArray();
-
+            // 
             $parameters['interactive'] = [
                 'type' => 'list',
                 "body" => [
@@ -176,15 +163,13 @@ final class WhatsAppDriver extends  HttpDriver
      */
     public function sendPayload($payload)
     {
-
         // 'https://graph.facebook.com/v17.0/FROM_PHONE_NUMBER_ID/messages'
-        $url = $this->facebookProfileEndpoint . $this->getSenderId() . '/messages';
-        $headers = ['Authorization: Bearer ' . $this->config->get('token')];
+        $url = $this->endpoint . $this->getSenderId() . '/messages';
+        $headers = $this->getHeaders();
         $response = $this->http->post($url, [], $payload, $headers);
-        Log::error("sendPayload", [$payload]);
 
         if (!$response->isSuccessful()) {
-            Log::error("sendPayloadddd", [$payload, $this->config->get('token'), $response->getContent()]);
+            // log error
         }
 
         return $response;
@@ -201,12 +186,12 @@ final class WhatsAppDriver extends  HttpDriver
      */
     public function sendRequest($endpoint, array $parameters, IncomingMessage $matchingMessage)
     {
-        $url = $this->facebookProfileEndpoint . $this->getSenderId() . '/messages';
-        $headers = ['Authorization: Bearer ' . $this->config->get('token')];
+        $url = $this->endpoint . "/" . $endpoint;
+        $headers = $this->getHeaders();
         $response = $this->http->post($url, [], $parameters, $headers);
 
         if (!$response->isSuccessful()) {
-            Log::error("sendRequest", [$parameters, $this->config->get('token'), $response->getContent()]);
+            // log error
         }
 
         return $response;
@@ -220,23 +205,29 @@ final class WhatsAppDriver extends  HttpDriver
         return !empty($this->config->get('token'));
     }
 
-    public function getRequestMessage(): string
+    public function getHeaders(): array
+    {
+        return [
+            'Authorization: Bearer ' . $this->config->get('token')
+        ];
+    }
+
+    public function getMessageText(): string
     {
         $type = request()->entry[0]["changes"][0]['value']['messages'][0]['type'] ?? "";
+
         switch ($type) {
             case 'text':
                 return request()->entry[0]["changes"][0]['value']['messages'][0]['text']['body'] ?? "";
 
             case 'interactive':
-                $reply = request()->entry[0]["changes"][0]['value']['messages'][0]['interactive']['list_reply'];
-                $input = str_starts_with($reply['id'], 'go-to-block:') ? $reply['id'] : "";
-                return $input ? $input : $reply['title'] ?? "";
+                $reply = request()->entry[0]["changes"][0]['value']['messages'][0]['interactive']['list_reply'] ?? null;
+                return  $reply['title'] ?? "";
 
             default:
                 return "";
         }
     }
-
 
     // app
     public function getSenderId(): string
