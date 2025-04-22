@@ -1,20 +1,12 @@
 <?php
 
-namespace App\Modules\BotMan;
-
 use BotMan\BotMan\BotMan;
 use BotMan\BotMan\BotManFactory;
 use BotMan\BotMan\Cache\LaravelCache;
 use BotMan\BotMan\Drivers\DriverManager;
+use WhatsApp\WhatsAppDriver;
 
-use Illuminate\Http\Request;
-
-use App\Modules\BotMan\WhatsAppDriver;
-use App\Modules\BotMan\WhatsAppConversation;
-
-use App\Http\Controllers\Controller;
-
-class WhatsAppController extends Controller
+class BotmanController
 {
     /**
      * Handle the incoming request.
@@ -22,10 +14,7 @@ class WhatsAppController extends Controller
     public function __invoke(Request $request)
     {
         try {
-
-            /**
-             * Verify webhook
-             */
+            // Verify webhook
             $challenge = $request->hub_challenge;
 
             if ($challenge) {
@@ -34,16 +23,9 @@ class WhatsAppController extends Controller
                 return $challenge;
             }
 
-            if ($request->object !== 'whatsapp_business_account') {
-                // log request error
-                return;
-            }
-
-            // validate if event is message
-            if (!$this->getMessageText()) return;
 
             $config =  [
-                'whatsapp_business_account' => [
+                'whatsapp' => [
                     'token' => 'your-meta-app-access-token',
                 ]
             ];
@@ -52,18 +34,24 @@ class WhatsAppController extends Controller
             DriverManager::loadDriver(WhatsAppDriver::class);
             $botman = BotManFactory::create($config, new LaravelCache());
 
-            // 
-            $botman->fallback(
-                fn (BotMan $bot)  =>
-                $bot->startConversation(new WhatsAppConversation())
-            );
+            //
+            $botman->fallback(fn(BotMan $bot)  => $bot->startConversation(new Conversation));
 
+            //
             $botman->listen();
-        } catch (\Exception $e) {
-            // log error
-        } finally {
+        } catch (\Throwable $th) {
             return response()->json([], 200);
         }
+    }
+
+    protected function isRequestValid()
+    {
+        return  in_array(false, [
+            $this->getConversationId(),
+            $this->getSenderId(),
+            $this->getRecipientId(),
+            $this->getMessageText(),
+        ]);
     }
 
     protected function getConversationId(): string

@@ -17,12 +17,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 // https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages
 // https://developers.facebook.com/docs/whatsapp/messaging-limits
+// DRIVER_NAME needs to match filename w/out "Driver"
 class WhatsAppDriver extends  HttpDriver
 {
     protected $endpoint = 'https://graph.facebook.com/v17.0/';
 
     /** @var string */
-    // DRIVER_NAME needs to match filename w/out "Driver"
     const DRIVER_NAME = 'WhatsApp';
 
     public $messages = [];
@@ -36,8 +36,7 @@ class WhatsAppDriver extends  HttpDriver
         $this->payload = new ParameterBag((array) json_decode($request->getContent(), true));
         $this->event = Collection::make((array) $this->payload->get('entry', [null])[0]);
         // $this->signature = $request->headers->get('X_HUB_SIGNATURE', '');
-        $this->content = $request->getContent();
-        $this->config = Collection::make($this->config->get('whatsapp_business_account', []));
+        $this->config = Collection::make($this->config->get('whatsapp', []));
     }
 
     /**
@@ -47,11 +46,13 @@ class WhatsAppDriver extends  HttpDriver
      */
     public function matchesRequest()
     {
-        if ($this->payload->get('object') !== "whatsapp_business_account") {
-            return false;
-        }
-
-        return (bool) $this->getMessageText();
+        return in_array(false, [
+            $this->isConfigured(),
+            $this->payload->get('object') !== "whatsapp_business_account",
+            $this->getSenderId(),
+            $this->getReceiverId(),
+            $this->getMessageText()
+        ]);
     }
 
     /**
@@ -66,7 +67,6 @@ class WhatsAppDriver extends  HttpDriver
             $senderId = $this->getSenderId(); // app
             $receiverId = $this->getReceiverId(); // user
 
-            // FIXME: update to sender/receiver id
             $message = new IncomingMessage($userMessage, $receiverId, $senderId, $this->payload);
             $this->messages = [$message];
         }
@@ -85,17 +85,6 @@ class WhatsAppDriver extends  HttpDriver
     }
 
     /**
-     * @param IncomingMessage $message
-     * @return \BotMan\BotMan\Messages\Incoming\Answer
-     */
-    public function getConversationAnswer(IncomingMessage $message)
-    {
-        $answer = Answer::create($message->getText())->setMessage($message);
-
-        return $answer;
-    }
-
-    /**
      * @param string|Question|OutgoingMessage $message
      * @param IncomingMessage $matchingMessage
      * @param array $additionalParameters
@@ -103,58 +92,12 @@ class WhatsAppDriver extends  HttpDriver
      */
     public function buildServicePayload($message, $matchingMessage, $additionalParameters = [])
     {
-        $additionalParameters['type'] ??= "text";
-
-        $parameters = [
+        return [
             "messaging_product" => "whatsapp",
             "recipient_type" => "individual",
             "to" => $this->getReceiverId(),
-            "type" => "text",
-            "text" => [
-                "preview_url" => false,
-                "body" => $message->getText()
-            ]
+            ...$message->toArray()
         ];
-
-        if ($additionalParameters['type'] === 'image') {
-            $parameters['type'] = "image";
-            $parameters['image'] = [
-                'link' => $message->getText()
-            ];
-        }
-
-        if (in_array($additionalParameters['type'], ['button', 'quick-reply'])) {
-            $parameters['type'] = "interactive";
-
-            // parse buttons
-            $buttons = $additionalParameters['buttons'];
-            $buttons = array_slice($buttons, 0, 10);
-            $buttons = array_map(function ($button) {
-                return [
-                    "id" =>  $button['id'],
-                    "title" => $button['title'],
-                ];
-            }, $buttons);
-
-            // 
-            $parameters['interactive'] = [
-                'type' => 'list',
-                "body" => [
-                    "text" => $message->getText()
-                ],
-                'action' => [
-                    "sections" => [
-                        [
-                            "title" => "Options",
-                            "rows" => $buttons
-                        ]
-                    ],
-                    "button" => "Options",
-                ]
-            ];
-        }
-
-        return $parameters;
     }
 
     /**
@@ -214,19 +157,13 @@ class WhatsAppDriver extends  HttpDriver
 
     public function getMessageText(): string
     {
-        $type = request()->entry[0]["changes"][0]['value']['messages'][0]['type'] ?? "";
+        $message = $this->event->get("changes")[0]['value']['messages'][0];
 
-        switch ($type) {
-            case 'text':
-                return request()->entry[0]["changes"][0]['value']['messages'][0]['text']['body'] ?? "";
-
-            case 'interactive':
-                $reply = request()->entry[0]["changes"][0]['value']['messages'][0]['interactive']['list_reply'] ?? null;
-                return  $reply['title'] ?? "";
-
-            default:
-                return "";
+        if ($message['type'] ===  'interactive') {
+            return $message['interactive']['list_reply']["title"] ?? "";
         }
+
+        return $message['text']['body'] ?? "";
     }
 
     // app
