@@ -1,4 +1,4 @@
-# BotMan WhatsApp Driver
+# BotMan Driver
 
 BotMan driver enables integration of WhatsApp with [BotMan](https://github.com/botman/botman)
 

@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions are **welcome** and will be fully **credited**. We accept contributions via Pull Requests on [Github](https://github.com/zerexei/botman-driver-whatsapp).
+Contributions are **welcome** and will be fully **credited**. We accept contributions via Pull Requests on [Github](https://github.com/zerexei/botman-driver).
 
 ## Pull Requests
 
@@ -18,5 +18,4 @@ Contributions are **welcome** and will be fully **credited**. We accept contribu
 $ phpunit
 ```
 
-
-*Happy coding!*
+_Happy coding!_
