@@ -1,21 +1,26 @@
-# Contributing
+# Contributing to BotMan Drivers 🤖
 
-Contributions are **welcome** and will be fully **credited**. We accept contributions via Pull Requests on [Github](https://github.com/zerexei/botman-driver).
+Thanks for helping out! 🎉 Every contribution counts!
 
-## Pull Requests
+## 🐞 Bug Reports
+Found a bug? Open an issue and include:
+- What happened ❌
+- How to reproduce it 🔄
+- Any error messages ⚠️
 
-- **[PSR-2 Coding Standard.](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-2-coding-style-guide.md)** The easiest way to apply the conventions is to install [PHP CS Fixer](https://github.com/FriendsOfPHP/PHP-CS-Fixer).
-- **Add tests!** Your patch won't be accepted if it doesn't have tests.
-- **Document any change in behaviour.** Make sure the `README.md` and any other relevant documentation are kept up-to-date.
-- **Consider our release cycle.** We try to follow [SemVer v2.0.0](http://semver.org/). Randomly breaking public APIs is not an option.
-- **Create feature branches.** Don't ask us to pull from your master branch.
-- **One pull request per feature.** If you want to do more than one thing, send multiple pull requests.
-- **Send coherent history.** Make sure each individual commit in your pull request is meaningful. If you had to make multiple intermediate commits while developing, please [squash them](https://www.git-scm.com/book/en/v2/Git-Tools-Rewriting-History#Changing-Multiple-Commit-Messages) before submitting.
+## 💡 Feature Ideas
+Got an idea? Open an issue and tell us:
+- What you want ✨
+- Why it’s useful 🎯
 
-## Running Tests
+## 🚀 Pull Requests
+1. Fork the repo 🍴 
+2. Make a branch: `git checkout -b my-feature`
+3. Commit your changes: `git commit -m "Add something cool"`
+4. Push & open a PR 📬
 
-```bash
-$ phpunit
-```
+## 📝 Code Style
+- Follow the existing style 🎨
+- Comment & test when needed 🛠️
 
-_Happy coding!_
+_Happy coding!_ 😄✨🚀
