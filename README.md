@@ -18,7 +18,7 @@ It enables developers to connect their bots to different channels with minimal c
 ## Installation
 
 ```bash
-composer require your-namespace/botman-driver
+composer require Exei/botman-driver
 ```
 
 ## Usage
