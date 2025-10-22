@@ -15,7 +15,7 @@ Got an idea? Open an issue and tell us:
 
 ## 🚀 Pull Requests
 1. Fork the repo 🍴 
-2. Make a branch: `git checkout -b my-feature`
+2. Make a branch: `git checkout -b feature/x`
 3. Commit your changes: `git commit -m "Add something cool"`
 4. Push & open a PR 📬
 
