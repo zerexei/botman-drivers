@@ -2,52 +2,37 @@
 
 require __DIR__ . '/vendor/autoload.php';
 
-use BotMan\BotMan\BotMan;
-use BotMan\BotMan\BotManFactory;
-use BotMan\Drivers\Web\WebDriver;
-use BotMan\BotMan\Drivers\DriverManager;
+use Drivers\Viber\MessengerController;
+use Illuminate\Http\Request;
+use Drivers\Web\WebController;
+use Drivers\Viber\ViberController;
+use Drivers\WhatsApp\WhatsAppController;
 
-$config = [
-    // Your driver-specific configuration
-    // "messenger" => [
-    //    "token" => "TOKEN"
-    // ]
-];
+try {
+    // Create a Request instance
+    $request = Request::capture();
 
-// Load the driver(s) you want to use
-DriverManager::loadDriver(WebDriver::class);
+    $driver = $request->input('driver');
 
-// Create an instance
-$botman = BotManFactory::create($config);
+    $controller = match ($driver) {
+        'web' => WebController::class,
+        'messenger' => MessengerController::class,
+        'whatsApp' => WhatsAppController::class,
+        'viber' => ViberController::class,
+    };
 
-// 1️⃣ Greeting
-$botman->hears("hello", function (BotMan $bot) {
-    $bot->reply("Hey there 👋 How's your day going?");
-});
+    $instance = new $controller();
 
-// 2️⃣ Asking the bot’s name
-$botman->hears("what is your name", function (BotMan $bot) {
-    $bot->reply("I'm your friendly chat assistant 🤖");
-});
+    $response = $instance($request);
+} catch (\Throwable $th) {
+    $message = sprintf(
+        "[%s] %s in %s:%d\nStack trace:\n%s\n\n",
+        date('Y-m-d H:i:s'),
+        $th->getMessage(),
+        $th->getFile(),
+        $th->getLine(),
+        $th->getTraceAsString()
+    );
 
-// 3️⃣ Asking about time
-$botman->hears("what time is it", function (BotMan $bot) {
-    $bot->reply("⏰ The current time is " . date("h:i A"));
-});
-
-// 4️⃣ Asking about help
-$botman->hears("help", function (BotMan $bot) {
-    $bot->reply("🧭 Sure! You can say things like “hello”, “what time is it”, or “tell me a joke.”");
-});
-
-// 5️⃣ Telling a joke
-$botman->hears("tell me a joke", function (BotMan $bot) {
-    $bot->reply("😂 Why don't programmers like nature? Too many bugs!");
-});
-
-$botman->fallback(function (BotMan $bot) {
-    $bot->reply("😅 Sorry, I didn't quite get that. Could you try rephrasing?");
-});
-
-// Start listening
-$botman->listen();
+    file_put_contents(__DIR__ . '/logs/error.log', $message, FILE_APPEND);
+}
