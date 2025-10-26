@@ -53,7 +53,7 @@ $botman->hears('hello', function ($bot) {
 Contributions are welcome! 🎉
 
 
-Please see the [CONTRIBUTING](CONTRIBUTING)
+Please see the [CONTRIBUTING](CONTRIBUTING.md)
 guide for details on how to get started.
 
 ## 🔒 Security Vulnerabilities
