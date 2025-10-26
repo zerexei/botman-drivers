@@ -1,4 +1,4 @@
-# Contributing to BotMan Drivers 🤖
+# Contributing to Exei BotMan Drivers 🤖
 
 Thanks for helping out! 🎉 Every contribution counts!
 
