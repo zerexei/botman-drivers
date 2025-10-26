@@ -1,6 +1,12 @@
 {
-    "require": {
-        "botman/botman": "^2.8",
-        "botman/driver-web": "^1.5"
+  "require": {
+    "botman/botman": "^2.8",
+    "botman/driver-web": "^1.5",
+    "illuminate/http": "^12.35"
+  },
+  "autoload": {
+    "psr-4": {
+      "Drivers\\": "Drivers/"
     }
+  }
 }
